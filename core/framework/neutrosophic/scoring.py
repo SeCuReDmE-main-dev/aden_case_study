@@ -186,3 +186,18 @@ def aggregate_scores(scores: list[NeutrosophicScore]) -> NeutrosophicScore:
     falsity = sum(score.falsity for score in scores) / count
     rationale = (f"aggregate_count={count}",)
     return NeutrosophicScore(truth, indeterminacy, falsity, rationale)
+
+
+def aggregate_worker_reports(reports: list[dict[str, Any]]) -> NeutrosophicScore:
+    """Score and aggregate a batch of worker report payloads."""
+    scores = [
+        score_worker_report(
+            status=str(report.get("status", "unknown")),
+            summary=str(report.get("summary", "")),
+            data=report.get("data") if isinstance(report.get("data"), dict) else {},
+            error=str(report.get("error")) if report.get("error") else None,
+            signals=report.get("signals") if isinstance(report.get("signals"), dict) else {},
+        )
+        for report in reports
+    ]
+    return aggregate_scores(scores)

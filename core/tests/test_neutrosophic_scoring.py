@@ -1,8 +1,17 @@
+import asyncio
 import math
 
 import pytest
 
-from framework.neutrosophic import NeutrosophicDecision, NeutrosophicScore, aggregate_scores, score_worker_report
+from framework.neutrosophic import (
+    NeutrosophicDecision,
+    NeutrosophicJudge,
+    NeutrosophicScore,
+    aggregate_scores,
+    aggregate_worker_reports,
+    score_judge_context,
+    score_worker_report,
+)
 
 
 def test_score_clamps_values() -> None:
@@ -172,8 +181,6 @@ def test_worker_stopped_report_is_conservative() -> None:
 def test_queen_score_line_omitted_for_empty_score() -> None:
     # WorkerResult.neutrosophic_score defaults to {}. The queen must not emit
     # a malformed "T=None, I=None" line when the dict is empty.
-    from framework.neutrosophic import NeutrosophicScore
-
     score_dict = NeutrosophicScore(0.8, 0.1, 0.1, ("status=success",)).to_dict()
 
     # Simulate the queen guard logic: non-empty dict with all keys present.
@@ -183,3 +190,46 @@ def test_queen_score_line_omitted_for_empty_score() -> None:
     # Simulate empty dict (the default before any score is set).
     empty: dict = {}
     assert not (isinstance(empty, dict) and empty)
+
+
+def test_aggregate_worker_reports_scores_batch() -> None:
+    score = aggregate_worker_reports(
+        [
+            {"status": "success", "summary": "Done", "data": {"answer": 1}},
+            {"status": "partial", "summary": "Missing one source", "data": {}},
+        ]
+    )
+
+    assert score.truth > 0.4
+    assert score.indeterminacy > 0.1
+    assert score.rationale == ("aggregate_count=2",)
+
+
+def test_score_judge_context_accepts_complete_output() -> None:
+    score = score_judge_context(
+        {
+            "assistant_text": "Final answer",
+            "missing_keys": [],
+            "tool_calls": [],
+            "iteration": 1,
+        }
+    )
+
+    assert score.decision == NeutrosophicDecision.ACCEPT
+
+
+def test_neutrosophic_judge_retries_missing_outputs() -> None:
+    judge = NeutrosophicJudge("Collect evidence", max_iterations=10)
+    verdict = asyncio.run(
+        judge.evaluate(
+            {
+                "assistant_text": "I found part of it",
+                "missing_keys": ["source"],
+                "tool_calls": [],
+                "iteration": 2,
+            }
+        )
+    )
+
+    assert verdict.action == "RETRY"
+    assert "Neutrosophic score" in (verdict.feedback or "")
