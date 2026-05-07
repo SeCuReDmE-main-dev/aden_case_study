@@ -123,3 +123,24 @@ def test_success_report_with_error_does_not_clean_accept() -> None:
 
     assert "error_present" in score.rationale
     assert score.decision != NeutrosophicDecision.ACCEPT
+
+
+def test_worker_result_includes_neutrosophic_score() -> None:
+    from types import SimpleNamespace
+
+    from framework.host.worker import Worker
+
+    worker = Worker(
+        worker_id="worker_1",
+        task="Collect evidence",
+        agent_loop=None,
+        context=SimpleNamespace(stream_id="worker:worker_1", execution_id="exec_1"),
+    )
+    result = worker._build_result(
+        SimpleNamespace(success=True, output={"answer": "done"}, error=None, tokens_used=4),
+        duration=1.2,
+        default_status="success",
+    )
+
+    assert result.neutrosophic_score["decision"] == "accept"
+    assert result.neutrosophic_score["truth"] > result.neutrosophic_score["falsity"]
