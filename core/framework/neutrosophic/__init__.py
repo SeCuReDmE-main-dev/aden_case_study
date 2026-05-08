@@ -1,7 +1,7 @@
 """Neutrosophic scoring helpers for swarm decision quality."""
 
-from framework.neutrosophic.judge import NeutrosophicJudge, score_judge_context
-from framework.neutrosophic.scoring import (
+from .judge import NeutrosophicJudge, score_judge_context
+from .scoring import (
     NeutrosophicDecision,
     NeutrosophicScore,
     aggregate_scores,

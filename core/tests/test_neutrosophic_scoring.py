@@ -233,3 +233,64 @@ def test_neutrosophic_judge_retries_missing_outputs() -> None:
 
     assert verdict.action == "RETRY"
     assert "Neutrosophic score" in (verdict.feedback or "")
+
+
+def test_neutrosophic_judge_escalates_late_incomplete_attempt() -> None:
+    judge = NeutrosophicJudge("Summarise findings", max_iterations=10)
+    verdict = asyncio.run(
+        judge.evaluate(
+            {
+                "assistant_text": "Partial summary",
+                "missing_keys": ["conclusion"],
+                "tool_calls": [],
+                "iteration": 8,
+            }
+        )
+    )
+
+    assert verdict.action == "ESCALATE"
+    assert "Neutrosophic score" in (verdict.feedback or "")
+
+
+def test_score_judge_context_handles_malformed_context() -> None:
+    # Non-int iteration, non-list missing_keys/tool_calls → defaults must not raise.
+    score = score_judge_context(
+        {
+            "assistant_text": "answer",
+            "missing_keys": "should-be-a-list",
+            "tool_calls": None,
+            "iteration": "not-an-int",
+        }
+    )
+
+    # Malformed non-list missing_keys coerces to [] → no penalty, assistant_text present → ACCEPT.
+    assert score.decision == NeutrosophicDecision.ACCEPT
+
+
+def test_neutrosophic_judge_not_instantiated_at_module_level() -> None:
+    # Guard: NeutrosophicJudge must remain opt-in — no module-level instance in the runtime.
+    import ast
+    import pathlib
+
+    runtime_roots = [
+        pathlib.Path("core/framework/agent_loop"),
+        pathlib.Path("core/framework/host"),
+        pathlib.Path("core/framework/server"),
+        pathlib.Path("core/framework/orchestrator"),
+    ]
+    offenders: list[str] = []
+    for root in runtime_roots:
+        for py_file in root.rglob("*.py"):
+            source = py_file.read_text(encoding="utf-8", errors="replace")
+            try:
+                tree = ast.parse(source)
+            except SyntaxError:
+                continue
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Call):
+                    func = node.func
+                    name = func.id if isinstance(func, ast.Name) else getattr(func, "attr", "")
+                    if name == "NeutrosophicJudge":
+                        offenders.append(f"{py_file}:{node.lineno}")
+
+    assert offenders == [], f"NeutrosophicJudge instantiated in runtime at: {offenders}"

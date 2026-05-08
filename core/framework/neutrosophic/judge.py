@@ -47,7 +47,7 @@ def score_judge_context(context: dict[str, Any]) -> NeutrosophicScore:
         rationale.append("tool_calls_pending")
 
     if iteration >= 7 and missing_keys:
-        falsity += 0.3
+        falsity += 0.6  # sufficient to cross _F_ESCALATE_MIN and trigger ESCALATE
         rationale.append("late_iteration_incomplete")
 
     return NeutrosophicScore(truth, indeterminacy, falsity, tuple(rationale))
@@ -108,6 +108,6 @@ class NeutrosophicJudge:
             f"Your task: {self._task}\n"
             f"{message}\n"
             "Neutrosophic score: "
-            f"T={score_data['truth']}, I={score_data['indeterminacy']}, "
-            f"F={score_data['falsity']}, decision={score_data['decision']}."
+            f"T={score_data['truth']:.3f}, I={score_data['indeterminacy']:.3f}, "
+            f"F={score_data['falsity']:.3f}, decision={score_data['decision']}."
         )
