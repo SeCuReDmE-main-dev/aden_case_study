@@ -23,6 +23,8 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
+from framework.neutrosophic.scoring import score_worker_report as _score_worker_report
+
 logger = logging.getLogger(__name__)
 
 
@@ -45,6 +47,7 @@ class WorkerResult:
     status: str = "success"  # "success" | "partial" | "failed" | "timeout" | "stopped"
     summary: str = ""
     data: dict[str, Any] = field(default_factory=dict)
+    neutrosophic_score: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -232,6 +235,12 @@ class Worker:
                     status=explicit["status"],
                     summary=explicit["summary"],
                     data=explicit["data"],
+                    neutrosophic_score=self._score_report(
+                        explicit["status"],
+                        explicit["summary"],
+                        explicit["data"],
+                        "Worker stopped by queen after reporting",
+                    ),
                 )
                 await self._emit_terminal_events(None, force_status=explicit["status"])
             else:
@@ -240,6 +249,12 @@ class Worker:
                     duration_seconds=duration,
                     status="stopped",
                     summary="Worker was cancelled before completion.",
+                    neutrosophic_score=self._score_report(
+                        "stopped",
+                        "Worker was cancelled before completion.",
+                        {},
+                        "Worker stopped by queen",
+                    ),
                 )
                 await self._emit_terminal_events(None, force_status="stopped")
             return self._result
@@ -252,6 +267,7 @@ class Worker:
                 duration_seconds=duration,
                 status="failed",
                 summary=f"Worker crashed: {exc}",
+                neutrosophic_score=self._score_report("failed", f"Worker crashed: {exc}", {}, str(exc)),
             )
             logger.error("Worker %s failed: %s", self.id, exc, exc_info=True)
             await self._emit_terminal_events(None, force_status="failed")
@@ -298,6 +314,21 @@ class Worker:
             "data": data or {},
         }
 
+    def _score_report(
+        self,
+        status: str,
+        summary: str,
+        data: dict[str, Any] | None = None,
+        error: str | None = None,
+    ) -> dict[str, Any]:
+        """Return an additive decision-quality score for worker reports."""
+        return _score_worker_report(
+            status=status,
+            summary=summary,
+            data=data or {},
+            error=error,
+        ).to_dict()
+
     def _build_result(
         self,
         agent_result: Any,
@@ -315,6 +346,12 @@ class Worker:
                 status=explicit["status"],
                 summary=explicit["summary"],
                 data=explicit["data"],
+                neutrosophic_score=self._score_report(
+                    explicit["status"],
+                    explicit["summary"],
+                    explicit["data"],
+                    agent_result.error,
+                ),
             )
         # Synthesise a minimal report from AgentResult
         if agent_result.success:
@@ -331,6 +368,7 @@ class Worker:
             status=default_status,
             summary=summary,
             data=data,
+            neutrosophic_score=self._score_report(default_status, summary, data, agent_result.error),
         )
 
     async def _emit_terminal_events(
@@ -373,6 +411,12 @@ class Worker:
         result = self._result
         if result is None:
             return
+        neutrosophic_score = result.neutrosophic_score or self._score_report(
+            force_status or result.status,
+            result.summary,
+            result.data,
+            result.error,
+        )
         await self._event_bus.publish(
             AgentEvent(
                 type=EventType.SUBAGENT_REPORT,
@@ -389,6 +433,7 @@ class Worker:
                     "error": result.error,
                     "duration_seconds": result.duration_seconds,
                     "tokens_used": result.tokens_used,
+                    "neutrosophic_score": neutrosophic_score,
                 },
             )
         )

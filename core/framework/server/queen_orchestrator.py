@@ -1034,11 +1034,26 @@ async def create_queen(
                 err = data.get("error")
                 payload_data = data.get("data") or {}
                 duration = data.get("duration_seconds")
+                neutrosophic_score = data.get("neutrosophic_score")
 
                 lines = ["[WORKER_REPORT]", f"worker_id: {worker_id}", f"status: {status}"]
                 if duration is not None:
                     try:
                         lines.append(f"duration: {float(duration):.1f}s")
+                    except (TypeError, ValueError):
+                        pass
+                if isinstance(neutrosophic_score, dict) and neutrosophic_score:
+                    try:
+                        truth = neutrosophic_score.get("truth")
+                        indeterminacy = neutrosophic_score.get("indeterminacy")
+                        falsity = neutrosophic_score.get("falsity")
+                        decision = neutrosophic_score.get("decision")
+                        if all(v is not None for v in (truth, indeterminacy, falsity, decision)):
+                            score_line = (
+                                f"neutrosophic_score: T={float(truth):.3f},"
+                                f" I={float(indeterminacy):.3f}, F={float(falsity):.3f}, decision={decision}"
+                            )
+                            lines.append(score_line)
                     except (TypeError, ValueError):
                         pass
                 lines.append(f"summary: {summary}")

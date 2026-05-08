@@ -399,12 +399,15 @@ class TestSpawnBatchAndWaitForReports:
             assert by_id[ids[0]]["status"] == "success"
             assert by_id[ids[0]]["summary"] == "w1 done"
             assert by_id[ids[0]]["data"] == {"batch": 1, "rows": 10}
+            assert by_id[ids[0]]["neutrosophic_score"]["decision"] == "accept"
 
             assert by_id[ids[1]]["status"] == "success"
             assert by_id[ids[1]]["data"] == {"batch": 2, "rows": 15}
+            assert "neutrosophic_score" in by_id[ids[1]]
 
             assert by_id[ids[2]]["status"] == "failed"
             assert by_id[ids[2]]["data"] == {"batch": 3, "error_code": 503}
+            assert by_id[ids[2]]["neutrosophic_score"]["decision"] == "escalate"
         finally:
             await colony.stop()
 
@@ -438,6 +441,7 @@ class TestSpawnBatchAndWaitForReports:
             assert reports[0]["worker_id"] == "nonexistent_worker"
             assert reports[0]["status"] == "failed"
             assert reports[0]["error"] == "no_such_worker"
+            assert reports[0]["neutrosophic_score"] == {}
         finally:
             await colony.stop()
 
