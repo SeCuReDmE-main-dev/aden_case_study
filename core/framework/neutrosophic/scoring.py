@@ -128,6 +128,8 @@ def score_worker_report(
         truth, indeterminacy, falsity = _PARTIAL_BASE
         rationale.append("status=partial")
     elif normalized_status in {"failed", "timeout", "stopped"}:
+        # A stopped worker may have useful partial context, but it did not
+        # complete its contract; keep the default decision conservative.
         truth, indeterminacy, falsity = _TERMINAL_FAILURE_BASE
         rationale.append(f"status={normalized_status}")
     else:
