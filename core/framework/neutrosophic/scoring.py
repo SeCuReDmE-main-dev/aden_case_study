@@ -193,7 +193,7 @@ def aggregate_worker_reports(reports: list[dict[str, Any]]) -> NeutrosophicScore
     scores = [
         score_worker_report(
             status=str(report.get("status", "unknown")),
-            summary=str(report.get("summary", "")),
+            summary=report.get("summary") or "",
             data=report.get("data") if isinstance(report.get("data"), dict) else {},
             error=str(report.get("error")) if report.get("error") else None,
             signals=report.get("signals") if isinstance(report.get("signals"), dict) else {},

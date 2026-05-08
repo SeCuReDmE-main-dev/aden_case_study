@@ -23,7 +23,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
-from framework.neutrosophic import score_worker_report as _score_worker_report
+from framework.neutrosophic.scoring import score_worker_report as _score_worker_report
 
 logger = logging.getLogger(__name__)
 

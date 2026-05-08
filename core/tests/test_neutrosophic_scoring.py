@@ -205,6 +205,15 @@ def test_aggregate_worker_reports_scores_batch() -> None:
     assert score.rationale == ("aggregate_count=2",)
 
 
+def test_aggregate_worker_reports_treats_none_summary_as_missing() -> None:
+    score = aggregate_worker_reports([{"status": "success", "summary": None, "data": {}}])
+    direct = score_worker_report(status="success", summary="", data={})
+
+    assert score.truth == direct.truth
+    assert score.indeterminacy == direct.indeterminacy
+    assert score.falsity == direct.falsity
+
+
 def test_score_judge_context_accepts_complete_output() -> None:
     score = score_judge_context(
         {
@@ -252,6 +261,51 @@ def test_neutrosophic_judge_escalates_late_incomplete_attempt() -> None:
     assert "Neutrosophic score" in (verdict.feedback or "")
 
 
+def test_neutrosophic_judge_uses_configured_iteration_budget() -> None:
+    near_budget_judge = NeutrosophicJudge("Summarise findings", max_iterations=3)
+    near_budget_verdict = asyncio.run(
+        near_budget_judge.evaluate(
+            {
+                "assistant_text": "Partial summary",
+                "missing_keys": ["conclusion"],
+                "tool_calls": [],
+                "iteration": 2,
+            }
+        )
+    )
+
+    wide_budget_judge = NeutrosophicJudge("Summarise findings", max_iterations=50)
+    wide_budget_verdict = asyncio.run(
+        wide_budget_judge.evaluate(
+            {
+                "assistant_text": "Partial summary",
+                "missing_keys": ["conclusion"],
+                "tool_calls": [],
+                "iteration": 8,
+            }
+        )
+    )
+
+    assert near_budget_verdict.action == "ESCALATE"
+    assert wide_budget_verdict.action == "RETRY"
+
+
+def test_neutrosophic_judge_escalates_many_missing_keys_near_budget() -> None:
+    judge = NeutrosophicJudge("Summarise findings", max_iterations=5)
+    verdict = asyncio.run(
+        judge.evaluate(
+            {
+                "assistant_text": "Partial summary",
+                "missing_keys": ["conclusion", "sources", "risks", "owner"],
+                "tool_calls": [],
+                "iteration": 4,
+            }
+        )
+    )
+
+    assert verdict.action == "ESCALATE"
+
+
 def test_score_judge_context_handles_malformed_context() -> None:
     # Non-int iteration, non-list missing_keys/tool_calls → defaults must not raise.
     score = score_judge_context(
@@ -267,19 +321,22 @@ def test_score_judge_context_handles_malformed_context() -> None:
     assert score.decision == NeutrosophicDecision.ACCEPT
 
 
-def test_neutrosophic_judge_not_instantiated_at_module_level() -> None:
-    # Guard: NeutrosophicJudge must remain opt-in — no module-level instance in the runtime.
+def test_neutrosophic_judge_not_instantiated_in_runtime_paths() -> None:
+    # Guard: NeutrosophicJudge must remain opt-in in the core runtime.
     import ast
     import pathlib
 
+    core_root = pathlib.Path(__file__).resolve().parents[1]
     runtime_roots = [
-        pathlib.Path("core/framework/agent_loop"),
-        pathlib.Path("core/framework/host"),
-        pathlib.Path("core/framework/server"),
-        pathlib.Path("core/framework/orchestrator"),
+        core_root / "framework" / "agent_loop",
+        core_root / "framework" / "host",
+        core_root / "framework" / "server",
+        core_root / "framework" / "orchestrator",
     ]
     offenders: list[str] = []
     for root in runtime_roots:
+        if not root.exists():
+            continue
         for py_file in root.rglob("*.py"):
             source = py_file.read_text(encoding="utf-8", errors="replace")
             try:

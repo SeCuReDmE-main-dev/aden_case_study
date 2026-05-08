@@ -13,14 +13,11 @@ def score_judge_context(context: dict[str, Any]) -> NeutrosophicScore:
     assistant_text = str(context.get("assistant_text") or "").strip()
     missing_keys = context.get("missing_keys", [])
     tool_calls = context.get("tool_calls", [])
-    iteration = context.get("iteration", 0)
 
     if not isinstance(missing_keys, list):
         missing_keys = []
     if not isinstance(tool_calls, list):
         tool_calls = []
-    if not isinstance(iteration, int):
-        iteration = 0
 
     truth = 0.2
     indeterminacy = 0.35
@@ -46,10 +43,6 @@ def score_judge_context(context: dict[str, Any]) -> NeutrosophicScore:
         indeterminacy += 0.08
         rationale.append("tool_calls_pending")
 
-    if iteration >= 7 and missing_keys:
-        falsity += 0.6  # sufficient to cross _F_ESCALATE_MIN and trigger ESCALATE
-        rationale.append("late_iteration_incomplete")
-
     return NeutrosophicScore(truth, indeterminacy, falsity, tuple(rationale))
 
 
@@ -65,9 +58,16 @@ class NeutrosophicJudge:
         missing_keys = context.get("missing_keys", [])
         if not isinstance(missing_keys, list):
             missing_keys = []
+        remaining = self._remaining_iterations(context)
 
         if score.decision == NeutrosophicDecision.ACCEPT:
             return JudgeVerdict(action="ACCEPT", feedback="")
+
+        if missing_keys and remaining <= 1:
+            return JudgeVerdict(
+                action="ESCALATE",
+                feedback=self._feedback("Escalating because the current attempt is incomplete late in the run.", score),
+            )
 
         if score.decision == NeutrosophicDecision.ESCALATE:
             return JudgeVerdict(
@@ -75,7 +75,6 @@ class NeutrosophicJudge:
                 feedback=self._feedback("Escalating because the current attempt is incomplete late in the run.", score),
             )
 
-        remaining = self._remaining_iterations(context)
         if missing_keys:
             return JudgeVerdict(
                 action="RETRY",
@@ -85,11 +84,20 @@ class NeutrosophicJudge:
                 ),
             )
 
-        if score.indeterminacy >= 0.65:
+        if score.decision == NeutrosophicDecision.CLARIFY:
             return JudgeVerdict(
                 action="RETRY",
                 feedback=self._feedback(
                     "The answer is still too indeterminate. Add evidence or clarify the result.",
+                    score,
+                ),
+            )
+
+        if score.decision == NeutrosophicDecision.RETRY:
+            return JudgeVerdict(
+                action="RETRY",
+                feedback=self._feedback(
+                    "The result contains contradiction or failure pressure that requires a retry.",
                     score,
                 ),
             )

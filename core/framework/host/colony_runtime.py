@@ -1130,6 +1130,7 @@ class ColonyRuntime:
                     "error": "..." | None,
                     "duration_seconds": 12.3,
                     "tokens_used": 4567,
+                    "neutrosophic_score": {...},
                 },
                 ...
             ]
@@ -1152,6 +1153,7 @@ class ColonyRuntime:
                     "error": "no_such_worker",
                     "duration_seconds": 0.0,
                     "tokens_used": 0,
+                    "neutrosophic_score": {},
                 }
                 continue
             if not worker.is_active and worker._result is not None:
@@ -1226,6 +1228,7 @@ class ColonyRuntime:
                 "error": "timeout",
                 "duration_seconds": duration,
                 "tokens_used": tokens,
+                "neutrosophic_score": {},
             }
             pending_ids.discard(wid)
 

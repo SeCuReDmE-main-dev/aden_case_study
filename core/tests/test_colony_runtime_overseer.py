@@ -441,6 +441,7 @@ class TestSpawnBatchAndWaitForReports:
             assert reports[0]["worker_id"] == "nonexistent_worker"
             assert reports[0]["status"] == "failed"
             assert reports[0]["error"] == "no_such_worker"
+            assert reports[0]["neutrosophic_score"] == {}
         finally:
             await colony.stop()
 
