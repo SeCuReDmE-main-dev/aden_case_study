@@ -23,6 +23,8 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
+from framework.neutrosophic import score_worker_report as _score_worker_report
+
 logger = logging.getLogger(__name__)
 
 
@@ -320,9 +322,7 @@ class Worker:
         error: str | None = None,
     ) -> dict[str, Any]:
         """Return an additive decision-quality score for worker reports."""
-        from framework.neutrosophic import score_worker_report
-
-        return score_worker_report(
+        return _score_worker_report(
             status=status,
             summary=summary,
             data=data or {},

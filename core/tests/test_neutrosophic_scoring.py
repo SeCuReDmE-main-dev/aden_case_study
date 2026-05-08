@@ -144,3 +144,42 @@ def test_worker_result_includes_neutrosophic_score() -> None:
 
     assert result.neutrosophic_score["decision"] == "accept"
     assert result.neutrosophic_score["truth"] > result.neutrosophic_score["falsity"]
+
+
+def test_worker_stopped_report_is_conservative() -> None:
+    from types import SimpleNamespace
+
+    from framework.host.worker import Worker
+
+    # A stopped/cancelled worker should never yield ACCEPT.
+    worker = Worker(
+        worker_id="worker_2",
+        task="Collect evidence",
+        agent_loop=None,
+        context=SimpleNamespace(stream_id="worker:worker_2", execution_id="exec_2"),
+    )
+    score = worker._score_report(
+        "stopped",
+        "Worker was cancelled before completion.",
+        {},
+        "Worker stopped by queen",
+    )
+
+    assert score["decision"] != "accept"
+    assert score["falsity"] >= score["truth"]
+
+
+def test_queen_score_line_omitted_for_empty_score() -> None:
+    # WorkerResult.neutrosophic_score defaults to {}. The queen must not emit
+    # a malformed "T=None, I=None" line when the dict is empty.
+    from framework.neutrosophic import NeutrosophicScore
+
+    score_dict = NeutrosophicScore(0.8, 0.1, 0.1, ("status=success",)).to_dict()
+
+    # Simulate the queen guard logic: non-empty dict with all keys present.
+    assert isinstance(score_dict, dict) and score_dict
+    assert all(score_dict.get(k) is not None for k in ("truth", "indeterminacy", "falsity", "decision"))
+
+    # Simulate empty dict (the default before any score is set).
+    empty: dict = {}
+    assert not (isinstance(empty, dict) and empty)

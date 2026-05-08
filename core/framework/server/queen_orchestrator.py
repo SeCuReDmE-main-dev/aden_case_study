@@ -1042,12 +1042,17 @@ async def create_queen(
                         lines.append(f"duration: {float(duration):.1f}s")
                     except (TypeError, ValueError):
                         pass
-                if isinstance(neutrosophic_score, dict):
+                if isinstance(neutrosophic_score, dict) and neutrosophic_score:
                     truth = neutrosophic_score.get("truth")
                     indeterminacy = neutrosophic_score.get("indeterminacy")
                     falsity = neutrosophic_score.get("falsity")
                     decision = neutrosophic_score.get("decision")
-                    lines.append(f"neutrosophic_score: T={truth}, I={indeterminacy}, F={falsity}, decision={decision}")
+                    if all(v is not None for v in (truth, indeterminacy, falsity, decision)):
+                        score_line = (
+                            f"neutrosophic_score: T={truth:.3f},"
+                            f" I={indeterminacy:.3f}, F={falsity:.3f}, decision={decision}"
+                        )
+                        lines.append(score_line)
                 lines.append(f"summary: {summary}")
                 if err:
                     lines.append(f"error: {err}")
